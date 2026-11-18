@@ -3,10 +3,10 @@
 Migrate a JavaScript/TypeScript project between package managers — npm, pnpm, yarn, and bun.
 
 ```bash
-ts-migrate-runtime <from> <to> [dir]
+ts-migrate-runtime <from> <to>
 ```
 
-`<from>` is the manager the project uses today, `<to>` is the one to migrate to. `dir` defaults to the current directory.
+`<from>` is the manager the project uses today, `<to>` is the one to migrate to. The migration runs against the current directory.
 
 ## Usage
 
@@ -16,9 +16,6 @@ ts-migrate-runtime npm pnpm
 
 # Apply it
 ts-migrate-runtime npm pnpm --yes
-
-# Migrate another directory
-ts-migrate-runtime yarn bun ./path/to/project --yes
 ```
 
 Run it straight from source with Bun:

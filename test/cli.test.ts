@@ -2,33 +2,25 @@ import { describe, expect, test } from "bun:test";
 import { parseArgs } from "../src/cli.ts";
 
 describe("parseArgs", () => {
-  test("parses from, to and defaults to the current directory", () => {
+  test("parses from and to", () => {
     const result = parseArgs(["npm", "pnpm"]);
     expect(result).toEqual({
       kind: "run",
-      options: { from: "npm", to: "pnpm", dir: ".", yes: false, keepNodeModules: false, noImport: false },
+      options: { from: "npm", to: "pnpm", yes: false, keepNodeModules: false, noImport: false },
     });
   });
 
-  test("accepts a directory and flags in any order", () => {
-    const result = parseArgs(["-y", "npm", "pnpm", "sub", "--keep-node-modules", "--no-import"]);
+  test("accepts flags in any order", () => {
+    const result = parseArgs(["-y", "npm", "pnpm", "--keep-node-modules", "--no-import"]);
     expect(result.kind).toBe("run");
     if (result.kind !== "run") return;
     expect(result.options).toEqual({
       from: "npm",
       to: "pnpm",
-      dir: "sub",
       yes: true,
       keepNodeModules: true,
       noImport: true,
     });
-  });
-
-  test("supports -- to stop option parsing", () => {
-    const result = parseArgs(["npm", "pnpm", "--", "-weird-dir"]);
-    expect(result.kind).toBe("run");
-    if (result.kind !== "run") return;
-    expect(result.options.dir).toBe("-weird-dir");
   });
 
   test("recognises help and version", () => {
@@ -60,9 +52,9 @@ describe("parseArgs", () => {
   });
 
   test("rejects extra positionals", () => {
-    const result = parseArgs(["npm", "pnpm", "a", "b"]);
+    const result = parseArgs(["npm", "pnpm", "extra"]);
     expect(result.kind).toBe("error");
     if (result.kind !== "error") return;
-    expect(result.message).toContain("unexpected extra arguments: b");
+    expect(result.message).toContain("unexpected extra arguments: extra");
   });
 });
