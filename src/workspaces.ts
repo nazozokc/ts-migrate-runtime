@@ -23,12 +23,16 @@ export function workspacePackages(pkg: Record<string, unknown>): string[] | unde
   return undefined;
 }
 
-/** Parse a YAML mapping, or return undefined when the content is not a mapping. */
+/** Parse a YAML mapping, or return undefined when the content is not a mapping or is invalid. */
 export function parseYamlMapping(text: string | undefined): Record<string, unknown> | undefined {
   if (text === undefined) return undefined;
-  const parsed = Bun.YAML.parse(text);
-  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-    return parsed as Record<string, unknown>;
+  try {
+    const parsed = Bun.YAML.parse(text);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Invalid YAML — treat as unparsable
   }
   return undefined;
 }
