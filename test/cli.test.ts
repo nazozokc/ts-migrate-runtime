@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { parseArgs } from "../src/cli.ts";
+import { parseArgs, renderPlan } from "../src/cli.ts";
+import type { Plan, Suggestion } from "../src/types.ts";
 
 describe("parseArgs", () => {
   test("parses from and to", () => {
@@ -56,5 +57,50 @@ describe("parseArgs", () => {
     expect(result.kind).toBe("error");
     if (result.kind !== "error") return;
     expect(result.message).toContain("unexpected extra arguments: extra");
+  });
+});
+
+function planWith(suggestions: Suggestion[]): Plan {
+  return {
+    from: "npm",
+    to: "pnpm",
+    root: "/proj",
+    targetVersion: "12.9.0",
+    actions: [],
+    warnings: [],
+    suggestions,
+  };
+}
+
+describe("renderPlan", () => {
+  test("prints dist suggestions with their location", () => {
+    const text = renderPlan(
+      planWith([{ file: "dist/index.js", line: 2, column: 7, match: "npm", replacement: "pnpm" }]),
+      false,
+    );
+
+    expect(text).toContain('suggestions (dist/ references "npm")');
+    expect(text).toContain("dist/index.js:2:7");
+    expect(text).toContain('"npm"');
+    expect(text).toContain('"pnpm"');
+  });
+
+  test("caps the list at 20 entries", () => {
+    const suggestions: Suggestion[] = Array.from({ length: 21 }, (_, i) => ({
+      file: "dist/index.js",
+      line: i + 1,
+      column: 1,
+      match: "npm",
+      replacement: "pnpm",
+    }));
+
+    const text = renderPlan(planWith(suggestions), false);
+    expect(text).toContain("dist/index.js:20:1");
+    expect(text).not.toContain("dist/index.js:21:1");
+    expect(text).toContain("… and 1 more");
+  });
+
+  test("omits the block when there are no suggestions", () => {
+    expect(renderPlan(planWith([]), false)).not.toContain("suggestions");
   });
 });

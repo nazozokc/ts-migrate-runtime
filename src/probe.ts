@@ -1,7 +1,31 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import type { Dirent } from "node:fs";
 import { resolve } from "node:path";
 import { PACKAGE_MANAGERS } from "./managers.ts";
 import type { FsProbe, PmId } from "./types.ts";
+
+/** Recursively list files below `relDir`, skipping symlinks and unreadable dirs. */
+function listFilesRecursive(root: string, relDir: string): string[] {
+  const files: string[] = [];
+  const visit = (rel: string) => {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(resolve(root, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const child = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        visit(child);
+      } else if (entry.isFile()) {
+        files.push(child);
+      }
+    }
+  };
+  visit(relDir);
+  return files.sort();
+}
 
 /** Filesystem-backed {@link FsProbe} rooted at `root`. */
 export function createFsProbe(root: string): FsProbe {
@@ -25,6 +49,7 @@ export function createFsProbe(root: string): FsProbe {
         return undefined;
       }
     },
+    listFiles: (rel) => listFilesRecursive(root, rel),
   };
 }
 

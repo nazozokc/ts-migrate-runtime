@@ -136,6 +136,20 @@ export function renderPlan(plan: Plan, apply: boolean): string {
       lines.push(`  ${color.yellow("warning:")} ${warning}`);
     }
   }
+  if (plan.suggestions.length > 0) {
+    lines.push("");
+    lines.push(`  ${color.dim(`suggestions (dist/ references "${plan.from}")`)}`);
+    const limit = 20;
+    for (const suggestion of plan.suggestions.slice(0, limit)) {
+      const location = `${suggestion.file}:${suggestion.line}:${suggestion.column}`;
+      lines.push(
+        `    ${color.cyan(location)}  ${color.yellow(`"${suggestion.match}"`)} → ${color.green(`"${suggestion.replacement}"`)}`,
+      );
+    }
+    if (plan.suggestions.length > limit) {
+      lines.push(`    ${color.dim(`… and ${plan.suggestions.length - limit} more`)}`);
+    }
+  }
   lines.push("");
   lines.push(apply ? color.dim("applying…") : color.dim("dry run — re-run with --yes to apply"));
   return lines.join("\n");

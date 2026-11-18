@@ -1,4 +1,5 @@
 import { PACKAGE_MANAGERS, importCommand, importNeedsLockfileOnly } from "./managers.ts";
+import { scanDist } from "./scan.ts";
 import type { FsProbe, Plan, PlanAction, PlanOptions } from "./types.ts";
 import {
   PKG_JSON,
@@ -147,5 +148,11 @@ export function buildPlan(opts: PlanOptions): Plan {
   // --- 7. install with the target manager ---
   actions.push({ kind: "run", cmd: toDef.installCmd, note: `generate ${to} lockfile and install` });
 
-  return { from, to, root, targetVersion: opts.targetVersion, actions, warnings };
+  // --- 8. report stale references in built output ---
+  const suggestions = scanDist({ probe, from, to });
+  if (suggestions.length > 0) {
+    warnings.push(`dist/ contains ${suggestions.length} reference(s) to ${from}; update the source and rebuild`);
+  }
+
+  return { from, to, root, targetVersion: opts.targetVersion, actions, warnings, suggestions };
 }

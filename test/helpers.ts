@@ -14,5 +14,11 @@ export function fakeProbe(input: { files?: Record<string, string>; dirs?: string
         ? (parsed as Record<string, unknown>)
         : undefined;
     },
+    listFiles: (rel) => {
+      const prefix = rel.endsWith("/") ? rel : `${rel}/`;
+      return Object.keys(files)
+        .filter((path) => path.startsWith(prefix))
+        .sort();
+    },
   };
 }

@@ -22,6 +22,20 @@ export type PlanAction =
   | { kind: "delete"; path: string; note: string }
   | { kind: "run"; cmd: string[]; note: string };
 
+/** A place under `dist/` that still references the source package manager. */
+export interface Suggestion {
+  /** File path relative to the project root, e.g. `dist/index.js`. */
+  file: string;
+  /** 1-based line number. */
+  line: number;
+  /** 1-based column number. */
+  column: number;
+  /** The matched source manager name, as written in the file. */
+  match: string;
+  /** Target manager name to use instead. */
+  replacement: string;
+}
+
 /** A fully described migration, ready to print (dry-run) or apply. */
 export interface Plan {
   from: PmId;
@@ -32,6 +46,8 @@ export interface Plan {
   targetVersion?: string;
   actions: PlanAction[];
   warnings: string[];
+  /** References to the source manager found under `dist/`. Never auto-applied. */
+  suggestions: Suggestion[];
 }
 
 /** Read-only view of the target directory. */
@@ -39,6 +55,8 @@ export interface FsProbe {
   exists(relPath: string): boolean;
   readText(relPath: string): string | undefined;
   readJson(relPath: string): Record<string, unknown> | undefined;
+  /** All files below `relDir`, as paths relative to the root. */
+  listFiles(relDir: string): string[];
 }
 
 export interface PlanOptions {

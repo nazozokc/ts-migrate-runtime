@@ -34,6 +34,7 @@ For `ts-migrate-runtime npm pnpm`, for example:
 4. **`node_modules`** — removed, because the on-disk layout differs between managers.
 5. **Old lockfile** — removed.
 6. **Install** — runs the target's install to produce its lockfile.
+7. **Build output scan** — reads text files under `dist/` and reports any place that still names the source manager, suggesting the target name instead (`dist/index.js:12:7 "npm" → "pnpm"`). It never rewrites files; update the source and rebuild.
 
 npm cannot import another manager's lockfile, so migrating **to npm** resolves versions fresh from `package.json`. The plan prints a warning when that happens.
 

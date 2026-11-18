@@ -193,6 +193,40 @@ describe("buildPlan", () => {
     expect(runCommands(plan)).toEqual(["pnpm install"]);
   });
 
+  test("suggests dist files that still reference the source manager", () => {
+    const plan = buildPlan({
+      from: "npm",
+      to: "pnpm",
+      root: "/proj",
+      targetVersion: "12.9.0",
+      probe: fakeProbe({
+        files: {
+          "package.json": pkg({ name: "app" }),
+          "dist/index.js": "npm install\n",
+        },
+        dirs: ["dist"],
+      }),
+    });
+
+    expect(plan.suggestions).toEqual([
+      { file: "dist/index.js", line: 1, column: 1, match: "npm", replacement: "pnpm" },
+    ]);
+    expect(plan.warnings.some((w) => w.includes("dist/ contains 1 reference(s) to npm"))).toBe(true);
+  });
+
+  test("has no suggestions when dist/ is absent", () => {
+    const plan = buildPlan({
+      from: "npm",
+      to: "pnpm",
+      root: "/proj",
+      targetVersion: "12.9.0",
+      probe: fakeProbe({ files: { "package.json": pkg({ name: "app" }) } }),
+    });
+
+    expect(plan.suggestions).toEqual([]);
+    expect(plan.warnings.some((w) => w.includes("dist/ contains"))).toBe(false);
+  });
+
   test("rejects the same source and target", () => {
     expect(() =>
       buildPlan({ from: "npm", to: "npm", root: "/proj", probe: fakeProbe({ files: {} }) }),
