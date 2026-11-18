@@ -9,13 +9,13 @@
   },
   "scripts": {
     "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outfile dist/index.mjs --target bun",
     "typecheck": "bun check",
-    "test": "bun test"
+    "test": "bun test",
+    "prepublishOnly": "bun run build"
   },
   "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
+    "@types/bun": "latest",
     "typescript": "^7"
   }
 }
