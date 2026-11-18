@@ -4,9 +4,8 @@
   "description": "Migrate a JavaScript/TypeScript project between package managers (npm, pnpm, yarn, bun).",
   "module": "src/index.ts",
   "type": "module",
-  "private": true,
   "bin": {
-    "ts-migrate-runtime": "src/index.ts"
+    "ts-migrate-runtime": "./dist/index.mjs"
   },
   "scripts": {
     "start": "bun run src/index.ts",
