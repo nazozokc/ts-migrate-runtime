@@ -35,6 +35,9 @@ export function buildPlan(opts: PlanOptions): Plan {
 
   const pkg = probe.readJson(PKG_JSON);
   if (!pkg) {
+    if (probe.exists(PKG_JSON)) {
+      throw new MigrationError(`${PKG_JSON} exists in ${root} but is not valid JSON or not an object`);
+    }
     throw new MigrationError(`${PKG_JSON} not found in ${root}`);
   }
 
@@ -47,7 +50,12 @@ export function buildPlan(opts: PlanOptions): Plan {
   if (toDef.workspaceSource === "pnpm-workspace.yaml") {
     const packages = workspacePackages(pkg);
     if (packages) {
-      const yaml = parseYamlMapping(probe.readText(PNPM_WORKSPACE)) ?? {};
+      const yamlText = probe.readText(PNPM_WORKSPACE);
+      const parsedYaml = parseYamlMapping(yamlText);
+      const yaml = parsedYaml ?? {};
+      if (yamlText !== undefined && parsedYaml === undefined) {
+        warnings.push(`${PNPM_WORKSPACE} exists but is not a valid YAML mapping; it was replaced`);
+      }
       if (yaml["packages"] !== undefined) {
         warnings.push(`${PNPM_WORKSPACE} already has "packages"; it was replaced from ${PKG_JSON}`);
       }
@@ -62,7 +70,11 @@ export function buildPlan(opts: PlanOptions): Plan {
       pkgChanged = true;
     }
   } else if (fromDef.workspaceSource === "pnpm-workspace.yaml") {
-    const yaml = parseYamlMapping(probe.readText(PNPM_WORKSPACE));
+    const yamlText = probe.readText(PNPM_WORKSPACE);
+    const yaml = parseYamlMapping(yamlText);
+    if (yamlText !== undefined && yaml === undefined) {
+      warnings.push(`${PNPM_WORKSPACE} exists but is not a valid YAML mapping; it was left unchanged`);
+    }
     const packages = yaml?.["packages"];
     if (yaml && Array.isArray(packages)) {
       if (workspacePackages(pkg)) {
