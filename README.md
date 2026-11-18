@@ -54,6 +54,7 @@ npm cannot import another manager's lockfile, so migrating **to npm** resolves v
 bun install
 bun test       # unit tests
 bun check      # type check
+bun run build  # produce dist/index.mjs for the bin
 bun run src/index.ts --help
 ```
 
