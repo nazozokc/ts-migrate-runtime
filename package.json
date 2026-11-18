@@ -1,10 +1,17 @@
 {
   "name": "ts-migrate-runtime",
-  "module": "index.ts",
+  "version": "0.1.0",
+  "description": "Migrate a JavaScript/TypeScript project between package managers (npm, pnpm, yarn, bun).",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
+  "bin": {
+    "ts-migrate-runtime": "src/index.ts"
+  },
   "scripts": {
-    "typecheck": "bun check"
+    "start": "bun run src/index.ts",
+    "typecheck": "bun check",
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/bun": "latest"
