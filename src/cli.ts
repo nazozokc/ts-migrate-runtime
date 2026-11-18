@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { applyPlan } from "./execute.ts";
 import { PACKAGE_MANAGERS, PM_IDS, isPmId } from "./managers.ts";
 import { MigrationError, buildPlan } from "./plan.ts";
@@ -10,7 +9,6 @@ import { color, fail, info, warn } from "./ui.ts";
 export interface CliOptions {
   from: PmId;
   to: PmId;
-  dir: string;
   yes: boolean;
   keepNodeModules: boolean;
   noImport: boolean;
@@ -22,16 +20,15 @@ export type ParseResult =
   | { kind: "version" }
   | { kind: "error"; message: string };
 
-const USAGE = `ts-migrate-runtime <from> <to> [dir] [options]
+const USAGE = `ts-migrate-runtime <from> <to> [options]
 
-Migrate a project between package managers.
+Migrate the project in the current directory between package managers.
 
 Package managers: ${PM_IDS.join(", ")}
 
 Arguments:
   <from>                current package manager
   <to>                  target package manager
-  [dir]                 project directory (default: current directory)
 
 Options:
   -y, --yes             apply the migration (default: dry run)
@@ -95,11 +92,11 @@ export function parseArgs(argv: string[]): ParseResult {
   if (positionals.length < 2) {
     return { kind: "error", message: "expected <from> and <to> package managers" };
   }
-  if (positionals.length > 3) {
-    return { kind: "error", message: `unexpected extra arguments: ${positionals.slice(3).join(" ")}` };
+  if (positionals.length > 2) {
+    return { kind: "error", message: `unexpected extra arguments: ${positionals.slice(2).join(" ")}` };
   }
 
-  const [from, to, dir = "."] = positionals;
+  const [from, to] = positionals;
   if (!isPmId(from!)) {
     return { kind: "error", message: `unknown package manager: ${from} (expected one of ${PM_IDS.join(", ")})` };
   }
@@ -110,7 +107,7 @@ export function parseArgs(argv: string[]): ParseResult {
     return { kind: "error", message: `source and target are the same (${from})` };
   }
 
-  return { kind: "run", options: { from, to, dir, yes, keepNodeModules, noImport } };
+  return { kind: "run", options: { from, to, yes, keepNodeModules, noImport } };
 }
 
 function describeAction(action: PlanAction): { verb: string; target: string } {
@@ -171,8 +168,8 @@ export async function main(argv: string[]): Promise<number> {
       return 2;
   }
 
-  const { from, to, dir, yes, keepNodeModules, noImport } = parsed.options;
-  const root = resolve(dir);
+  const { from, to, yes, keepNodeModules, noImport } = parsed.options;
+  const root = process.cwd();
   if (!existsSync(root)) {
     fail(`directory not found: ${root}`);
     return 1;
