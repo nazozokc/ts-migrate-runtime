@@ -17,5 +17,9 @@
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^7"
+  },
+  "dependencies": {
+    "execa": "^10.2.1",
+    "gunshi": "^0.37.3"
   }
 }
