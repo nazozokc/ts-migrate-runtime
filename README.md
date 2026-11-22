@@ -3,14 +3,18 @@
 Migrate a JavaScript/TypeScript project between package managers — npm, pnpm, yarn, and bun.
 
 ```bash
-ts-migrate-runtime <from> <to>
+ts-migrate-runtime [from] [to] [options]
 ```
 
-`<from>` is the manager the project uses today, `<to>` is the one to migrate to. The migration runs against the current directory.
+`<from>` is the manager the project uses today, `<to>` is the one to migrate to. The migration runs against the current directory. With no arguments in a TTY, an interactive TUI starts.
 
 ## Usage
 
 ```bash
+# Interactive TUI (also starts automatically with no args in a TTY)
+ts-migrate-runtime
+ts-migrate-runtime --interactive
+
 # Preview what would happen (dry run, the default)
 ts-migrate-runtime npm pnpm
 
@@ -21,6 +25,7 @@ ts-migrate-runtime npm pnpm --yes
 Run it straight from source with Bun:
 
 ```bash
+bun run src/index.ts --interactive
 bun run src/index.ts npm pnpm
 ```
 
@@ -40,13 +45,16 @@ npm cannot import another manager's lockfile, so migrating **to npm** resolves v
 
 ## Options
 
-| Option                | Description                                                     |
-| --------------------- | -------------------------------------------------------------- |
-| `-y`, `--yes`         | Apply the migration. Without it, the tool only prints the plan. |
-| `--keep-node-modules` | Keep the existing `node_modules` directory.                     |
-| `--no-import`         | Skip the lockfile import step and resolve fresh.                |
-| `-h`, `--help`        | Show help.                                                      |
-| `-v`, `--version`     | Show the version.                                               |
+| Option                  | Description                                                                 |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `-i`, `--interactive`   | Launch the interactive TUI. With no args in a TTY, it starts automatically. |
+| `-y`, `--yes`           | Apply the migration. Without it, the tool only prints the plan.             |
+| `--keep-node-modules`   | Keep the existing `node_modules` directory.                                 |
+| `--no-import`           | Skip the lockfile import step and resolve fresh.                            |
+| `-h`, `--help`          | Show help.                                                                  |
+| `-v`, `--version`       | Show the version.                                                           |
+
+Interactive mode requires a TTY. In non-interactive environments, pass `<from> <to>` explicitly.
 
 ## Development
 
@@ -61,7 +69,9 @@ bun run src/index.ts --help
 Source layout:
 
 - `src/index.ts` — CLI entry point
-- `src/cli.ts` — argument parsing, plan rendering, dispatch
+- `src/cli.ts` — argument parsing and dispatch
+- `src/tui.ts` — interactive TUI flow (`@clack/prompts`)
+- `src/render.ts` — plan rendering
 - `src/managers.ts` — package manager definitions and import commands
 - `src/plan.ts` — pure plan builder
 - `src/execute.ts` — applies a plan to disk

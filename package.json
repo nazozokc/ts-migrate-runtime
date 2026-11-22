@@ -7,6 +7,11 @@
   "bin": {
     "ts-migrate-runtime": "./dist/index.mjs"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outfile dist/index.mjs --target bun",
