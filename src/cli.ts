@@ -3,8 +3,10 @@ import { applyPlan } from "./execute.ts";
 import { PACKAGE_MANAGERS, PM_IDS, isPmId } from "./managers.ts";
 import { MigrationError, buildPlan } from "./plan.ts";
 import { createFsProbe, detectVersion } from "./probe.ts";
-import type { Plan, PlanAction, PmId } from "./types.ts";
-import { color, fail, info, warn } from "./ui.ts";
+import { formatAction, renderPlan } from "./render.ts";
+import { runInteractive } from "./tui.ts";
+import type { Plan, PmId } from "./types.ts";
+import { color, fail, info } from "./ui.ts";
 
 export interface CliOptions {
   from: PmId;
@@ -14,37 +16,49 @@ export interface CliOptions {
   noImport: boolean;
 }
 
+export interface InteractiveOptions {
+  from?: PmId;
+  to?: PmId;
+  keepNodeModules: boolean;
+  noImport: boolean;
+}
+
 export type ParseResult =
   | { kind: "run"; options: CliOptions }
+  | { kind: "interactive"; options: InteractiveOptions }
   | { kind: "help" }
   | { kind: "version" }
   | { kind: "error"; message: string };
 
-const USAGE = `ts-migrate-runtime <from> <to> [options]
+const USAGE = `ts-migrate-runtime [from] [to] [options]
 
 Migrate the project in the current directory between package managers.
 
 Package managers: ${PM_IDS.join(", ")}
 
 Arguments:
-  <from>                current package manager
-  <to>                  target package manager
+  [from]                current package manager
+  [to]                  target package manager
 
 Options:
+  -i, --interactive     launch the interactive TUI
   -y, --yes             apply the migration (default: dry run)
       --keep-node-modules
                         keep the existing node_modules directory
       --no-import       skip importing the source lockfile; resolve fresh
   -h, --help            show this help
-  -v, --version         show the version`;
+  -v, --version         show the version
+
+With no arguments in a TTY, the interactive TUI starts automatically.`;
 
 export function helpText(): string {
   return USAGE;
 }
 
-export function parseArgs(argv: string[]): ParseResult {
+export function parseArgs(argv: string[], opts: { isTTY?: boolean } = {}): ParseResult {
   const positionals: string[] = [];
   let yes = false;
+  let interactive = false;
   let keepNodeModules = false;
   let noImport = false;
   let help = false;
@@ -68,6 +82,10 @@ export function parseArgs(argv: string[]): ParseResult {
       case "--version":
         version = true;
         break;
+      case "-i":
+      case "--interactive":
+        interactive = true;
+        break;
       case "-y":
       case "--yes":
         yes = true;
@@ -89,71 +107,47 @@ export function parseArgs(argv: string[]): ParseResult {
   if (help) return { kind: "help" };
   if (version) return { kind: "version" };
 
-  if (positionals.length < 2) {
-    return { kind: "error", message: "expected <from> and <to> package managers" };
-  }
   if (positionals.length > 2) {
     return { kind: "error", message: `unexpected extra arguments: ${positionals.slice(2).join(" ")}` };
   }
 
-  const [from, to] = positionals;
-  if (!isPmId(from!)) {
-    return { kind: "error", message: `unknown package manager: ${from} (expected one of ${PM_IDS.join(", ")})` };
+  const [fromArg, toArg] = positionals;
+  if (fromArg !== undefined && !isPmId(fromArg)) {
+    return { kind: "error", message: `unknown package manager: ${fromArg} (expected one of ${PM_IDS.join(", ")})` };
   }
-  if (!isPmId(to!)) {
-    return { kind: "error", message: `unknown package manager: ${to} (expected one of ${PM_IDS.join(", ")})` };
+  if (toArg !== undefined && !isPmId(toArg)) {
+    return { kind: "error", message: `unknown package manager: ${toArg} (expected one of ${PM_IDS.join(", ")})` };
   }
-  if (from === to) {
-    return { kind: "error", message: `source and target are the same (${from})` };
+  if (fromArg !== undefined && toArg !== undefined && fromArg === toArg) {
+    return { kind: "error", message: `source and target are the same (${fromArg})` };
   }
 
-  return { kind: "run", options: { from, to, yes, keepNodeModules, noImport } };
+  const from = fromArg as PmId | undefined;
+  const to = toArg as PmId | undefined;
+
+  if (positionals.length < 2) {
+    if (interactive || (positionals.length === 0 && !yes)) {
+      const isTTY = opts.isTTY ?? Boolean(process.stdin.isTTY && process.stdout.isTTY);
+      if (!isTTY) {
+        return { kind: "error", message: "interactive mode requires a TTY" };
+      }
+      return { kind: "interactive", options: { from, to, keepNodeModules, noImport } };
+    }
+    return { kind: "error", message: "expected <from> and <to> package managers" };
+  }
+
+  if (interactive) {
+    const isTTY = opts.isTTY ?? Boolean(process.stdin.isTTY && process.stdout.isTTY);
+    if (!isTTY) {
+      return { kind: "error", message: "interactive mode requires a TTY" };
+    }
+    return { kind: "interactive", options: { from, to, keepNodeModules, noImport } };
+  }
+
+  return { kind: "run", options: { from: from!, to: to!, yes, keepNodeModules, noImport } };
 }
 
-function describeAction(action: PlanAction): { verb: string; target: string } {
-  switch (action.kind) {
-    case "write":
-      return { verb: "write", target: action.path };
-    case "delete":
-      return { verb: "delete", target: action.path };
-    case "run":
-      return { verb: "run", target: action.cmd.join(" ") };
-  }
-}
-
-export function renderPlan(plan: Plan, apply: boolean): string {
-  const lines: string[] = [];
-  lines.push(`${color.bold(`${plan.from} → ${plan.to}`)}  ${color.dim(plan.root)}`);
-  lines.push("");
-  plan.actions.forEach((action, index) => {
-    const { verb, target } = describeAction(action);
-    const label = `${String(index + 1).padStart(2)}.`;
-    lines.push(`  ${color.dim(label)} ${verb.padEnd(6)} ${color.cyan(target)}  ${color.dim(`(${action.note})`)}`);
-  });
-  if (plan.warnings.length > 0) {
-    lines.push("");
-    for (const warning of plan.warnings) {
-      lines.push(`  ${color.yellow("warning:")} ${warning}`);
-    }
-  }
-  if (plan.suggestions.length > 0) {
-    lines.push("");
-    lines.push(`  ${color.dim(`suggestions (dist/ references "${plan.from}")`)}`);
-    const limit = 20;
-    for (const suggestion of plan.suggestions.slice(0, limit)) {
-      const location = `${suggestion.file}:${suggestion.line}:${suggestion.column}`;
-      lines.push(
-        `    ${color.cyan(location)}  ${color.yellow(`"${suggestion.match}"`)} → ${color.green(`"${suggestion.replacement}"`)}`,
-      );
-    }
-    if (plan.suggestions.length > limit) {
-      lines.push(`    ${color.dim(`… and ${plan.suggestions.length - limit} more`)}`);
-    }
-  }
-  lines.push("");
-  lines.push(apply ? color.dim("applying…") : color.dim("dry run — re-run with --yes to apply"));
-  return lines.join("\n");
-}
+export { renderPlan };
 
 async function readVersion(): Promise<string> {
   try {
@@ -165,8 +159,12 @@ async function readVersion(): Promise<string> {
   }
 }
 
-export async function main(argv: string[]): Promise<number> {
-  const parsed = parseArgs(argv);
+export async function main(
+  argv: string[],
+  io: { isTTY?: boolean } = {},
+): Promise<number> {
+  const isTTY = io.isTTY ?? Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  const parsed = parseArgs(argv, { isTTY });
 
   switch (parsed.kind) {
     case "help":
@@ -180,6 +178,23 @@ export async function main(argv: string[]): Promise<number> {
       info("");
       info(helpText());
       return 2;
+    case "interactive": {
+      const root = process.cwd();
+      if (!existsSync(root)) {
+        fail(`directory not found: ${root}`);
+        return 1;
+      }
+      const probe = createFsProbe(root);
+      try {
+        return await runInteractive(root, probe, parsed.options, { isTTY: () => isTTY });
+      } catch (error) {
+        if (error instanceof MigrationError) {
+          fail(error.message);
+          return 1;
+        }
+        throw error;
+      }
+    }
   }
 
   const { from, to, yes, keepNodeModules, noImport } = parsed.options;
@@ -215,7 +230,7 @@ export async function main(argv: string[]): Promise<number> {
   try {
     await applyPlan(plan, {
       onAction: (action) => {
-        const { verb, target } = describeAction(action);
+        const { verb, target } = formatAction(action);
         info(`  ${color.green("→")} ${verb.padEnd(6)} ${target}`);
       },
     });
