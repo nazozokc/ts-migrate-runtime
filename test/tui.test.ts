@@ -98,12 +98,28 @@ describe("runInteractive", () => {
       "/proj",
       probe,
       { from: "npm", to: "pnpm", keepNodeModules: false, noImport: false },
-      { prompter, isTTY: () => true, apply },
+      { prompter, isTTY: () => true, apply, detectVersion: () => "10.0.0" },
     );
 
     expect(code).toBe(0);
     expect(prompter.confirmApply).toHaveBeenCalledTimes(1);
     expect(apply).toHaveBeenCalledTimes(1);
     expect(prompter.outro).toHaveBeenCalledWith(expect.stringContaining("Migrated npm → pnpm"));
+  });
+
+  test("refuses to apply when the target version is unavailable", async () => {
+    const apply = mock(async () => {});
+    const prompter = makePrompter({ confirmApply: mock(async () => "apply" as const) });
+
+    const code = await runInteractive(
+      "/proj",
+      fakeProbe({ files: baseFiles }),
+      { from: "npm", to: "pnpm", keepNodeModules: false, noImport: false },
+      { prompter, isTTY: () => true, apply, detectVersion: () => undefined },
+    );
+
+    expect(code).toBe(1);
+    expect(apply).not.toHaveBeenCalled();
+    expect(prompter.cancel).toHaveBeenCalledWith(expect.stringContaining("not installed"));
   });
 });

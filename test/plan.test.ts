@@ -180,6 +180,39 @@ describe("buildPlan", () => {
     expect(kinds(plan)).toEqual(["run:yarn install"]);
   });
 
+  test("removes a stale packageManager field when the target version is unknown", () => {
+    const plan = buildPlan({
+      from: "npm",
+      to: "yarn",
+      root: "/proj",
+      probe: fakeProbe({
+        files: { "package.json": pkg({ name: "app", packageManager: "npm@11.0.0" }) },
+      }),
+    });
+
+    expect(kinds(plan)).toContain("write:package.json");
+    const write = plan.actions.find((a) => a.kind === "write" && a.path === "package.json") as Extract<
+      PlanAction,
+      { kind: "write" }
+    >;
+    expect(JSON.parse(write.content)["packageManager"]).toBeUndefined();
+    expect(plan.warnings.some((w) => w.includes("removed stale"))).toBe(true);
+  });
+
+  test("warns when the detected source manager differs from the given one", () => {
+    const plan = buildPlan({
+      from: "npm",
+      to: "pnpm",
+      root: "/proj",
+      targetVersion: "10.0.0",
+      probe: fakeProbe({
+        files: { "package.json": pkg({ name: "app", packageManager: "pnpm@9.0.0" }) },
+      }),
+    });
+
+    expect(plan.warnings.some((w) => w.includes("appears to use pnpm, but the source was given as npm"))).toBe(true);
+  });
+
   test("warns when no source lockfile exists", () => {
     const plan = buildPlan({
       from: "npm",

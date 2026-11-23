@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import type { Dirent } from "node:fs";
 import { resolve } from "node:path";
@@ -56,13 +57,12 @@ export function createFsProbe(root: string): FsProbe {
 /** Detect the installed version of a package manager, or undefined. */
 export function detectVersion(pm: PmId): string | undefined {
   try {
-    const proc = Bun.spawnSync({
-      cmd: PACKAGE_MANAGERS[pm].versionCmd,
-      stdout: "pipe",
-      stderr: "ignore",
+    const [command, ...args] = PACKAGE_MANAGERS[pm].versionCmd;
+    const proc = spawnSync(command!, args, {
+      stdio: ["ignore", "pipe", "ignore"],
     });
-    if (proc.exitCode !== 0) return undefined;
-    const out = proc.stdout.toString().trim();
+    if (proc.error || proc.status !== 0) return undefined;
+    const out = String(proc.stdout ?? "").trim();
     const match = out.match(/\d+\.\d+\.\d+[^\s]*/);
     return match ? match[0] : out || undefined;
   } catch {

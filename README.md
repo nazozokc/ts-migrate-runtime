@@ -3,10 +3,12 @@
 Migrate a JavaScript/TypeScript project between package managers — npm, pnpm, yarn, and bun.
 
 ```bash
-ts-migrate-runtime [from] [to] [options]
+ts-migrate-runtime [from] [to] [dir] [options]
 ```
 
-`<from>` is the manager the project uses today, `<to>` is the one to migrate to. The migration runs against the current directory. With no arguments in a TTY, an interactive TUI starts.
+`<from>` is the manager the project uses today, `<to>` is the one to migrate to. `[dir]` is the project directory and defaults to the current directory. With no arguments in a TTY, an interactive TUI starts.
+
+The published binary runs on Node.js 18+ or Bun — Bun is not required by consumers.
 
 ## Usage
 
@@ -20,6 +22,9 @@ ts-migrate-runtime npm pnpm
 
 # Apply it
 ts-migrate-runtime npm pnpm --yes
+
+# Target another directory
+ts-migrate-runtime npm pnpm ../my-project --yes
 ```
 
 Run it straight from source with Bun:
@@ -43,6 +48,10 @@ For `ts-migrate-runtime npm pnpm`, for example:
 
 npm cannot import another manager's lockfile, so migrating **to npm** resolves versions fresh from `package.json`. The plan prints a warning when that happens.
 
+Before applying, the tool checks that the target manager is installed and that the source manager matches what the project appears to use. Applying is guarded by a temporary backup of every file it overwrites or deletes; if a command fails, the changes are rolled back and the backup is removed. After a successful apply it verifies that the target lockfile exists and that `packageManager` was updated, and prints warnings if not.
+
+If the target version cannot be detected, a stale `packageManager` field is removed rather than left pointing at the source manager. Set the version manually if Corepack or teammates need it.
+
 ## Options
 
 | Option                  | Description                                                                 |
@@ -64,7 +73,10 @@ bun test       # unit tests
 bun check      # type check
 bun run build  # produce dist/index.mjs for the bin
 bun run src/index.ts --help
+node dist/index.mjs --version  # verify the published binary
 ```
+
+CI runs tests, typecheck, build, the Node binary smoke test and `actionlint`.
 
 Source layout:
 

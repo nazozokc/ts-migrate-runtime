@@ -1,3 +1,5 @@
+import { parse, stringify } from "yaml";
+
 /** Workspace helpers shared by the plan builder. */
 
 export const PKG_JSON = "package.json";
@@ -27,7 +29,7 @@ export function workspacePackages(pkg: Record<string, unknown>): string[] | unde
 export function parseYamlMapping(text: string | undefined): Record<string, unknown> | undefined {
   if (text === undefined) return undefined;
   try {
-    const parsed = Bun.YAML.parse(text);
+    const parsed: unknown = parse(text);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return parsed as Record<string, unknown>;
     }
@@ -38,7 +40,7 @@ export function parseYamlMapping(text: string | undefined): Record<string, unkno
 }
 
 export function stringifyYaml(value: unknown): string {
-  const text = Bun.YAML.stringify(value, null, 2);
+  const text = stringify(value as Parameters<typeof stringify>[0], { indent: 2 });
   return text.endsWith("\n") ? text : `${text}\n`;
 }
 

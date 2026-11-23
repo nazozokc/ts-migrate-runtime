@@ -7,7 +7,7 @@ describe("parseArgs", () => {
     const result = parseArgs(["npm", "pnpm"], { isTTY: false });
     expect(result).toEqual({
       kind: "run",
-      options: { from: "npm", to: "pnpm", yes: false, keepNodeModules: false, noImport: false },
+      options: { from: "npm", to: "pnpm", root: ".", yes: false, keepNodeModules: false, noImport: false },
     });
   });
 
@@ -18,6 +18,7 @@ describe("parseArgs", () => {
     expect(result.options).toEqual({
       from: "npm",
       to: "pnpm",
+      root: ".",
       yes: true,
       keepNodeModules: true,
       noImport: true,
@@ -51,7 +52,7 @@ describe("parseArgs", () => {
   test("no args in TTY starts interactive mode", () => {
     expect(parseArgs([], { isTTY: true })).toEqual({
       kind: "interactive",
-      options: { from: undefined, to: undefined, keepNodeModules: false, noImport: false },
+      options: { from: undefined, to: undefined, root: ".", keepNodeModules: false, noImport: false },
     });
   });
 
@@ -72,7 +73,7 @@ describe("parseArgs", () => {
   test("--interactive parses with partial args", () => {
     expect(parseArgs(["-i", "npm", "--no-import"], { isTTY: true })).toEqual({
       kind: "interactive",
-      options: { from: "npm", to: undefined, keepNodeModules: false, noImport: true },
+      options: { from: "npm", to: undefined, root: ".", keepNodeModules: false, noImport: true },
     });
   });
 
@@ -80,8 +81,15 @@ describe("parseArgs", () => {
     expect(parseArgs(["--bogus"], { isTTY: false })).toEqual({ kind: "error", message: "unknown option: --bogus" });
   });
 
+  test("accepts a target directory as the third positional", () => {
+    expect(parseArgs(["npm", "pnpm", "../other"], { isTTY: false })).toEqual({
+      kind: "run",
+      options: { from: "npm", to: "pnpm", root: "../other", yes: false, keepNodeModules: false, noImport: false },
+    });
+  });
+
   test("rejects extra positionals", () => {
-    const result = parseArgs(["npm", "pnpm", "extra"], { isTTY: false });
+    const result = parseArgs(["npm", "pnpm", "dir", "extra"], { isTTY: false });
     expect(result.kind).toBe("error");
     if (result.kind !== "error") return;
     expect(result.message).toContain("unexpected extra arguments: extra");
