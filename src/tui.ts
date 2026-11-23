@@ -118,6 +118,7 @@ export async function runInteractive(
     prompter?: Prompter;
     isTTY?: () => boolean;
     apply?: typeof applyPlan;
+    detectVersion?: (pm: PmId) => string | undefined;
   } = {},
 ): Promise<number> {
   if (!(deps.isTTY ?? isTTY)()) {
@@ -152,7 +153,7 @@ export async function runInteractive(
       to,
       root,
       probe,
-      targetVersion: detectVersion(to),
+      targetVersion: (deps.detectVersion ?? detectVersion)(to),
       keepNodeModules: options.keepNodeModules,
       noImport: options.noImport,
     });
