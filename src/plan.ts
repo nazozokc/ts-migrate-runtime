@@ -1,4 +1,5 @@
 import { PACKAGE_MANAGERS, importCommand, importNeedsLockfileOnly } from "./managers.ts";
+import { detectFrom } from "./probe.ts";
 import { scanDist } from "./scan.ts";
 import type { FsProbe, Plan, PlanAction, PlanOptions } from "./types.ts";
 import {
@@ -43,6 +44,10 @@ export function buildPlan(opts: PlanOptions): Plan {
 
   const actions: PlanAction[] = [];
   const warnings: string[] = [];
+  const detectedFrom = detectFrom(probe);
+  if (detectedFrom && detectedFrom !== from) {
+    warnings.push(`project appears to use ${detectedFrom}, but the source was given as ${from}`);
+  }
   const nextPkg: Record<string, unknown> = { ...pkg };
   let pkgChanged = false;
 
@@ -109,7 +114,16 @@ export function buildPlan(opts: PlanOptions): Plan {
       pkgChanged = true;
     }
   } else {
-    warnings.push(`could not detect the ${to} version; the "packageManager" field was left unchanged`);
+    const stale = pkg["packageManager"];
+    if (stale !== undefined) {
+      delete nextPkg["packageManager"];
+      pkgChanged = true;
+      warnings.push(
+        `could not detect the ${to} version; removed stale "packageManager" (${String(stale)}) — set it manually if needed`,
+      );
+    } else {
+      warnings.push(`could not detect the ${to} version; the "packageManager" field was left unchanged`);
+    }
   }
 
   if (pkgChanged) {

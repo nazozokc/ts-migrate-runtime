@@ -1,5 +1,5 @@
 import * as p from "@clack/prompts";
-import { applyPlan } from "./execute.ts";
+import { applyPlan, verifyPlan } from "./execute.ts";
 import { PACKAGE_MANAGERS, PM_IDS } from "./managers.ts";
 import { MigrationError, buildPlan } from "./plan.ts";
 import { detectFrom, detectVersion } from "./probe.ts";
@@ -173,6 +173,10 @@ export async function runInteractive(
     prompter.outro("Dry run complete. No changes were made.");
     return 0;
   }
+  if (!plan.targetVersion) {
+    prompter.cancel(`target package manager "${to}" is not installed; install it before applying`);
+    return 1;
+  }
 
   const apply = deps.apply ?? applyPlan;
   const spinner = p.spinner();
@@ -194,6 +198,7 @@ export async function runInteractive(
   }
 
   spinner.stop("Migration applied.");
+  for (const warning of verifyPlan(plan, probe)) prompter.logWarn(warning);
   prompter.outro(color.green(`Migrated ${PACKAGE_MANAGERS[from].label} → ${PACKAGE_MANAGERS[to].label}`));
   return 0;
 }
