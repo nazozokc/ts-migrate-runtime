@@ -149,6 +149,36 @@ describe("applyPlan", () => {
   });
 });
 
+describe("applyPlan backup retention", () => {
+  test("keeps the backup directory and reports its path on request", async () => {
+    await writeFile(join(root, "package.json"), "original");
+    let reported: string | undefined;
+
+    await applyPlan(
+      plan([{ kind: "write", path: "package.json", content: "changed", note: "update" }]),
+      {
+        keepBackup: true,
+        onBackup: (dir) => {
+          reported = dir;
+        },
+      },
+    );
+
+    expect(reported).toBeDefined();
+    expect(await readFile(join(root, "package.json"), "utf8")).toBe("changed");
+    expect(await backupDirs()).toHaveLength(1);
+    expect(await readFile(join(reported!, "package.json"), "utf8")).toBe("original");
+  });
+
+  test("removes the backup directory by default", async () => {
+    await writeFile(join(root, "package.json"), "original");
+
+    await applyPlan(plan([{ kind: "write", path: "package.json", content: "changed", note: "update" }]));
+
+    expect(await backupDirs()).toEqual([]);
+  });
+});
+
 describe("verifyPlan", () => {
   test("reports a missing target lockfile, a stale source lockfile and a stale packageManager", async () => {
     await writeFile(

@@ -54,17 +54,31 @@ export function createFsProbe(root: string): FsProbe {
   };
 }
 
-/** Detect the installed version of a package manager, or undefined. */
-export function detectVersion(pm: PmId): string | undefined {
+/** Maximum time to wait for a `packageManager --version` call. */
+const VERSION_TIMEOUT_MS = 5000;
+
+/** Extract a version from the output of a `--version` call. */
+export function parseVersionOutput(output: string): string | undefined {
+  const text = output.trim();
+  const match = text.match(/\d+\.\d+\.\d+[^\s]*/);
+  return match ? match[0] : text || undefined;
+}
+
+/**
+ * Detect the installed version of a package manager, or undefined when it is
+ * missing, broken or too slow. Corepack's download prompt is disabled so a
+ * missing manager fails fast instead of waiting for input.
+ */
+export function detectVersion(pm: PmId, opts: { timeoutMs?: number } = {}): string | undefined {
   try {
     const [command, ...args] = PACKAGE_MANAGERS[pm].versionCmd;
     const proc = spawnSync(command!, args, {
       stdio: ["ignore", "pipe", "ignore"],
+      env: { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
+      timeout: opts.timeoutMs ?? VERSION_TIMEOUT_MS,
     });
     if (proc.error || proc.status !== 0) return undefined;
-    const out = String(proc.stdout ?? "").trim();
-    const match = out.match(/\d+\.\d+\.\d+[^\s]*/);
-    return match ? match[0] : out || undefined;
+    return parseVersionOutput(String(proc.stdout ?? ""));
   } catch {
     return undefined;
   }

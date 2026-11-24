@@ -12,6 +12,7 @@ export interface InteractiveTuiOptions {
   to?: PmId;
   keepNodeModules: boolean;
   noImport: boolean;
+  keepBackup: boolean;
 }
 
 type Cancel = symbol;
@@ -20,8 +21,8 @@ export interface Prompter {
   intro(title: string): void;
   selectFrom(initialValue?: PmId): Promise<PmId | Cancel>;
   selectTo(from: PmId, initialValue?: PmId): Promise<PmId | Cancel>;
-  selectOptions(initial: { noImport: boolean; keepNodeModules: boolean }): Promise<
-    { noImport: boolean; keepNodeModules: boolean } | Cancel
+  selectOptions(initial: { noImport: boolean; keepNodeModules: boolean; keepBackup: boolean }): Promise<
+    { noImport: boolean; keepNodeModules: boolean; keepBackup: boolean } | Cancel
   >;
   confirmApply(): Promise<"apply" | "dry-run" | "cancel" | Cancel>;
   note(message: string, title?: string): void;
@@ -59,6 +60,7 @@ export function createClackPrompter(): Prompter {
       const initialValues: string[] = [];
       if (initial.noImport) initialValues.push("no-import");
       if (initial.keepNodeModules) initialValues.push("keep-node-modules");
+      if (initial.keepBackup) initialValues.push("keep-backup");
       const result = await p.multiselect({
         message: "Options",
         required: false,
@@ -74,6 +76,11 @@ export function createClackPrompter(): Prompter {
             label: "Keep node_modules",
             hint: "do not delete the existing dependency tree",
           },
+          {
+            value: "keep-backup",
+            label: "Keep backup on success",
+            hint: "retain a recovery copy of changed files",
+          },
         ],
       });
       if (p.isCancel(result)) return result;
@@ -81,6 +88,7 @@ export function createClackPrompter(): Prompter {
       return {
         noImport: selected.has("no-import"),
         keepNodeModules: selected.has("keep-node-modules"),
+        keepBackup: selected.has("keep-backup"),
       };
     },
     confirmApply: () =>
@@ -143,6 +151,7 @@ export async function runInteractive(
   const options = await prompter.selectOptions({
     noImport: initial.noImport,
     keepNodeModules: initial.keepNodeModules,
+    keepBackup: initial.keepBackup,
   });
   if (prompter.isCancel(options)) return cancelled(prompter);
 
@@ -182,8 +191,13 @@ export async function runInteractive(
   const apply = deps.apply ?? applyPlan;
   const spinner = p.spinner();
   spinner.start("Applying migration...");
+  let backupDir: string | undefined;
   try {
     await apply(plan, {
+      keepBackup: options.keepBackup,
+      onBackup: (dir) => {
+        backupDir = dir;
+      },
       onAction: (action) => {
         const target = action.kind === "run" ? action.cmd.join(" ") : action.path;
         spinner.message(`${action.kind}: ${target}`);
@@ -199,6 +213,7 @@ export async function runInteractive(
   }
 
   spinner.stop("Migration applied.");
+  if (backupDir) prompter.note(`Backup kept at ${backupDir}`, "Recovery");
   for (const warning of verifyPlan(plan, probe)) prompter.logWarn(warning);
   prompter.outro(color.green(`Migrated ${PACKAGE_MANAGERS[from].label} → ${PACKAGE_MANAGERS[to].label}`));
   return 0;

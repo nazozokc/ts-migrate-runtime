@@ -260,6 +260,65 @@ describe("buildPlan", () => {
     expect(plan.warnings.some((w) => w.includes("dist/ contains"))).toBe(false);
   });
 
+  test("Yarn Classic imports a package-lock.json", () => {
+    const plan = buildPlan({
+      from: "npm",
+      to: "yarn",
+      root: "/proj",
+      targetVersion: "1.22.22",
+      probe: fakeProbe({
+        files: { "package.json": pkg({ name: "app" }), "package-lock.json": "{}" },
+      }),
+    });
+
+    expect(runCommands(plan)).toEqual(["yarn import", "yarn install"]);
+  });
+
+  test("Yarn Berry skips the removed import command", () => {
+    const plan = buildPlan({
+      from: "npm",
+      to: "yarn",
+      root: "/proj",
+      targetVersion: "4.6.0",
+      probe: fakeProbe({
+        files: { "package.json": pkg({ name: "app" }), "package-lock.json": "{}" },
+      }),
+    });
+
+    expect(runCommands(plan)).toEqual(["yarn install"]);
+    expect(plan.warnings.some((w) => w.includes('yarn 4.6.0 does not support "yarn import"'))).toBe(true);
+  });
+
+  test("skips yarn import when the version is unknown", () => {
+    const plan = buildPlan({
+      from: "npm",
+      to: "yarn",
+      root: "/proj",
+      probe: fakeProbe({
+        files: { "package.json": pkg({ name: "app" }), "package-lock.json": "{}" },
+      }),
+    });
+
+    expect(runCommands(plan)).toEqual(["yarn install"]);
+    expect(plan.warnings.some((w) => w.includes("could not detect the yarn version"))).toBe(true);
+  });
+
+  test("node_modules alone never triggers an import", () => {
+    const plan = buildPlan({
+      from: "npm",
+      to: "yarn",
+      root: "/proj",
+      targetVersion: "1.22.22",
+      probe: fakeProbe({
+        files: { "package.json": pkg({ name: "app" }) },
+        dirs: ["node_modules"],
+      }),
+    });
+
+    expect(runCommands(plan)).toEqual(["yarn install"]);
+    expect(plan.warnings.some((w) => w.includes("cannot import a npm lockfile"))).toBe(true);
+  });
+
   test("rejects the same source and target", () => {
     expect(() =>
       buildPlan({ from: "npm", to: "npm", root: "/proj", probe: fakeProbe({ files: {} }) }),

@@ -1,4 +1,4 @@
-import { PACKAGE_MANAGERS, importCommand, importNeedsLockfileOnly } from "./managers.ts";
+import { PACKAGE_MANAGERS, importCommand, majorVersion } from "./managers.ts";
 import { detectFrom } from "./probe.ts";
 import { scanDist } from "./scan.ts";
 import type { FsProbe, Plan, PlanAction, PlanOptions } from "./types.ts";
@@ -146,19 +146,26 @@ export function buildPlan(opts: PlanOptions): Plan {
   }
 
   // --- 4. import the source lockfile into the target ---
-  const importCmd = opts.noImport ? undefined : importCommand(from, to);
-  const canImport =
-    importCmd !== undefined &&
-    (sourceLockfiles.length > 0 || (!importNeedsLockfileOnly(to) && hasNodeModules(probe)));
+  // Every supported import command reads a lockfile; `node_modules` alone is
+  // never enough. `yarn import` also disappeared in Yarn Berry (v2+).
+  const yarnMajor = to === "yarn" ? majorVersion(opts.targetVersion) : undefined;
+  const yarnImportUnavailable = to === "yarn" && (yarnMajor === undefined || yarnMajor >= 2);
+  const importCmd = opts.noImport || yarnImportUnavailable ? undefined : importCommand(from, to);
+  const canImport = importCmd !== undefined && sourceLockfiles.length > 0;
 
   if (canImport && importCmd) {
     actions.push({
       kind: "run",
       cmd: importCmd,
-      note: `import ${sourceLockfiles.length > 0 ? sourceLockfiles.join(", ") : "node_modules"} into ${to}`,
+      note: `import ${sourceLockfiles.join(", ")} into ${to}`,
     });
   } else if (!opts.noImport) {
-    warnings.push(`${to} cannot import a ${from} lockfile; dependencies will be resolved fresh and versions may change`);
+    const reason = yarnImportUnavailable
+      ? yarnMajor === undefined
+        ? "could not detect the yarn version, so `yarn import` was skipped"
+        : `yarn ${opts.targetVersion} does not support "yarn import"`
+      : `${to} cannot import a ${from} lockfile`;
+    warnings.push(`${reason}; dependencies will be resolved fresh and versions may change`);
   }
 
   // --- 5. drop the old dependency tree ---
