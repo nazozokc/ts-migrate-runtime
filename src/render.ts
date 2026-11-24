@@ -20,6 +20,7 @@ export function renderPlan(plan: Plan, apply: boolean): string {
   const lines: string[] = [];
   lines.push(`${color.bold(`${plan.from} → ${plan.to}`)}  ${color.dim(plan.root)}`);
   lines.push("");
+  if (plan.actions.length === 0) lines.push(`  ${color.dim("no changes planned")}`);
   plan.actions.forEach((action, index) => {
     const { verb, target } = describeAction(action);
     const label = `${String(index + 1).padStart(2)}.`;

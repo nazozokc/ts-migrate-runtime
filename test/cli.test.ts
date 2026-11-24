@@ -7,7 +7,17 @@ describe("parseArgs", () => {
     const result = parseArgs(["npm", "pnpm"], { isTTY: false });
     expect(result).toEqual({
       kind: "run",
-      options: { from: "npm", to: "pnpm", root: ".", yes: false, keepNodeModules: false, noImport: false },
+      options: {
+        from: "npm",
+        to: "pnpm",
+        root: ".",
+        yes: false,
+        keepNodeModules: false,
+        noImport: false,
+        allowDirty: false,
+        json: false,
+        keepBackup: false,
+      },
     });
   });
 
@@ -22,6 +32,9 @@ describe("parseArgs", () => {
       yes: true,
       keepNodeModules: true,
       noImport: true,
+      allowDirty: false,
+      json: false,
+      keepBackup: false,
     });
   });
 
@@ -52,7 +65,14 @@ describe("parseArgs", () => {
   test("no args in TTY starts interactive mode", () => {
     expect(parseArgs([], { isTTY: true })).toEqual({
       kind: "interactive",
-      options: { from: undefined, to: undefined, root: ".", keepNodeModules: false, noImport: false },
+      options: {
+        from: undefined,
+        to: undefined,
+        root: ".",
+        keepNodeModules: false,
+        noImport: false,
+        keepBackup: false,
+      },
     });
   });
 
@@ -73,7 +93,14 @@ describe("parseArgs", () => {
   test("--interactive parses with partial args", () => {
     expect(parseArgs(["-i", "npm", "--no-import"], { isTTY: true })).toEqual({
       kind: "interactive",
-      options: { from: "npm", to: undefined, root: ".", keepNodeModules: false, noImport: true },
+      options: {
+        from: "npm",
+        to: undefined,
+        root: ".",
+        keepNodeModules: false,
+        noImport: true,
+        keepBackup: false,
+      },
     });
   });
 
@@ -84,7 +111,17 @@ describe("parseArgs", () => {
   test("accepts a target directory as the third positional", () => {
     expect(parseArgs(["npm", "pnpm", "../other"], { isTTY: false })).toEqual({
       kind: "run",
-      options: { from: "npm", to: "pnpm", root: "../other", yes: false, keepNodeModules: false, noImport: false },
+      options: {
+        from: "npm",
+        to: "pnpm",
+        root: "../other",
+        yes: false,
+        keepNodeModules: false,
+        noImport: false,
+        allowDirty: false,
+        json: false,
+        keepBackup: false,
+      },
     });
   });
 
@@ -93,6 +130,28 @@ describe("parseArgs", () => {
     expect(result.kind).toBe("error");
     if (result.kind !== "error") return;
     expect(result.message).toContain("unexpected extra arguments: extra");
+  });
+
+  test("parses safety and output flags", () => {
+    const result = parseArgs(
+      ["npm", "pnpm", "--json", "--keep-backup", "--allow-dirty", "--yes"],
+      { isTTY: false },
+    );
+    expect(result.kind).toBe("run");
+    if (result.kind !== "run") return;
+    expect(result.options).toMatchObject({
+      json: true,
+      keepBackup: true,
+      allowDirty: true,
+      yes: true,
+    });
+  });
+
+  test("rejects --json in interactive mode", () => {
+    expect(parseArgs(["--json"], { isTTY: true })).toEqual({
+      kind: "error",
+      message: "--json cannot be used with interactive mode; pass <from> and <to>",
+    });
   });
 });
 

@@ -12,6 +12,12 @@ export interface ApplyOptions {
   onAction?: (action: PlanAction) => void;
   /** Back up overwritten/deleted paths and roll back if an action fails (default: true). */
   backup?: boolean;
+  /** Keep the backup directory after a successful apply (default: false). */
+  keepBackup?: boolean;
+  /** Send child stdout to stderr so stdout stays machine-readable. */
+  quietRuns?: boolean;
+  /** Called with the retained backup directory after a successful apply. */
+  onBackup?: (dir: string) => void;
 }
 
 interface Backup {
@@ -131,7 +137,8 @@ export async function applyPlan(plan: Plan, opts: ApplyOptions = {}): Promise<vo
           const [command, ...args] = action.cmd;
           const proc = spawnSync(command!, args, {
             cwd: plan.root,
-            stdio: "inherit",
+            // fd 2 is stderr: child stdout must not corrupt --json output.
+            stdio: opts.quietRuns ? ["inherit", 2, "inherit"] : "inherit",
           });
           if (proc.error || proc.status !== 0) {
             const detail = proc.error?.message ?? `exit ${proc.status}`;
@@ -156,7 +163,13 @@ export async function applyPlan(plan: Plan, opts: ApplyOptions = {}): Promise<vo
     throw new MigrationError(`${detail} (changes rolled back)`);
   }
 
-  if (backup) await rm(backup.dir, { recursive: true, force: true });
+  if (backup) {
+    if (opts.keepBackup) {
+      opts.onBackup?.(backup.dir);
+    } else {
+      await rm(backup.dir, { recursive: true, force: true });
+    }
+  }
 }
 
 /** Check the result of an applied plan and return non-fatal warnings. */

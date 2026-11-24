@@ -25,6 +25,12 @@ ts-migrate-runtime npm pnpm --yes
 
 # Target another directory
 ts-migrate-runtime npm pnpm ../my-project --yes
+
+# Machine-readable plan for CI
+ts-migrate-runtime npm pnpm --json > plan.json
+
+# Keep a recovery copy after applying
+ts-migrate-runtime npm pnpm --yes --keep-backup
 ```
 
 Run it straight from source with Bun:
@@ -46,11 +52,13 @@ For `ts-migrate-runtime npm pnpm`, for example:
 6. **Install** — runs the target's install to produce its lockfile.
 7. **Build output scan** — reads text files under `dist/` and reports any place that still names the source manager, suggesting the target name instead (`dist/index.js:12:7 "npm" → "pnpm"`). It never rewrites files; update the source and rebuild.
 
-npm cannot import another manager's lockfile, so migrating **to npm** resolves versions fresh from `package.json`. The plan prints a warning when that happens.
+npm cannot import another manager's lockfile, so migrating **to npm** resolves versions fresh from `package.json`. The plan prints a warning when that happens. Yarn Berry (v2+) has no `yarn import`, and an import is never attempted from `node_modules` alone — a source lockfile is required. Version detection times out after five seconds and disables Corepack's download prompt, so a missing target manager fails fast.
 
-Before applying, the tool checks that the target manager is installed and that the source manager matches what the project appears to use. Applying is guarded by a temporary backup of every file it overwrites or deletes; if a command fails, the changes are rolled back and the backup is removed. After a successful apply it verifies that the target lockfile exists and that `packageManager` was updated, and prints warnings if not.
+Before applying, the tool checks that the target manager is installed, that the source manager matches what the project appears to use, and that tracked files are not dirty. Uncommitted changes block an apply; commit or stash them, or pass `--allow-dirty` to override. Applying is guarded by a backup of every file it overwrites or deletes; if a command fails, the changes are rolled back and the backup is removed. `--keep-backup` retains that directory on success and prints its path for manual recovery. After a successful apply it verifies that the target lockfile exists and that `packageManager` was updated, and prints warnings if not.
 
 If the target version cannot be detected, a stale `packageManager` field is removed rather than left pointing at the source manager. Set the version manually if Corepack or teammates need it.
+
+`--json` replaces the human-readable output with a single JSON object containing the plan (`actions`, `warnings`, `suggestions`), git status (`dirty`, `dirtyFiles`) and, after an apply, `applied`, `backupDir` and `verifyWarnings`. It cannot be combined with interactive mode.
 
 ## Options
 
@@ -60,6 +68,9 @@ If the target version cannot be detected, a stale `packageManager` field is remo
 | `-y`, `--yes`           | Apply the migration. Without it, the tool only prints the plan.             |
 | `--keep-node-modules`   | Keep the existing `node_modules` directory.                                 |
 | `--no-import`           | Skip the lockfile import step and resolve fresh.                            |
+| `--keep-backup`         | Retain the backup directory after a successful apply.                       |
+| `--allow-dirty`         | Apply even when tracked files have uncommitted changes.                     |
+| `--json`                | Emit a machine-readable plan or result instead of progress output.          |
 | `-h`, `--help`          | Show help.                                                                  |
 | `-v`, `--version`       | Show the version.                                                           |
 
@@ -88,5 +99,6 @@ Source layout:
 - `src/plan.ts` — pure plan builder
 - `src/execute.ts` — applies a plan to disk
 - `src/probe.ts` — filesystem probe and version detection
+- `src/git.ts` — dirty-worktree preflight
 - `src/workspaces.ts` — workspace config helpers
 - `src/ui.ts` — output helpers

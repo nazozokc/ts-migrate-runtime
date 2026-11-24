@@ -1,6 +1,8 @@
 import { describe, expect, mock, test } from "bun:test";
+import type { ApplyOptions } from "../src/execute.ts";
 import type { Prompter } from "../src/tui.ts";
 import { runInteractive } from "../src/tui.ts";
+import type { Plan } from "../src/types.ts";
 import { fakeProbe } from "./helpers.ts";
 
 function cancelSymbol(): symbol {
@@ -13,7 +15,7 @@ function makePrompter(overrides: Partial<Prompter> = {}): Prompter {
     intro: mock(() => {}),
     selectFrom: mock(async () => "npm" as const),
     selectTo: mock(async () => "pnpm" as const),
-    selectOptions: mock(async () => ({ noImport: false, keepNodeModules: false })),
+    selectOptions: mock(async () => ({ noImport: false, keepNodeModules: false, keepBackup: false })),
     confirmApply: mock(async () => "dry-run" as const),
     note: mock(() => {}),
     logWarn: mock(() => {}),
@@ -36,7 +38,7 @@ describe("runInteractive", () => {
     });
     const probe = fakeProbe({ files: baseFiles });
 
-    const code = await runInteractive("/proj", probe, { keepNodeModules: false, noImport: false }, { prompter, isTTY: () => true });
+    const code = await runInteractive("/proj", probe, { keepNodeModules: false, noImport: false, keepBackup: false }, { prompter, isTTY: () => true });
 
     expect(code).toBe(0);
     expect(prompter.selectFrom).toHaveBeenCalledTimes(1);
@@ -55,7 +57,7 @@ describe("runInteractive", () => {
     const code = await runInteractive(
       "/proj",
       fakeProbe({ files: baseFiles }),
-      { keepNodeModules: false, noImport: false },
+      { keepNodeModules: false, noImport: false, keepBackup: false },
       { prompter, isTTY: () => true },
     );
 
@@ -71,7 +73,7 @@ describe("runInteractive", () => {
     const code = await runInteractive(
       "/proj",
       probe,
-      { from: "pnpm", to: "npm", keepNodeModules: false, noImport: false },
+      { from: "pnpm", to: "npm", keepNodeModules: false, noImport: false, keepBackup: false },
       { prompter, isTTY: () => true },
     );
 
@@ -83,7 +85,7 @@ describe("runInteractive", () => {
   test("rejects non-TTY", async () => {
     const prompter = makePrompter();
     await expect(
-      runInteractive("/proj", fakeProbe({ files: baseFiles }), { keepNodeModules: false, noImport: false }, { prompter, isTTY: () => false }),
+      runInteractive("/proj", fakeProbe({ files: baseFiles }), { keepNodeModules: false, noImport: false, keepBackup: false }, { prompter, isTTY: () => false }),
     ).rejects.toThrow("interactive mode requires a TTY");
   });
 
@@ -97,7 +99,7 @@ describe("runInteractive", () => {
     const code = await runInteractive(
       "/proj",
       probe,
-      { from: "npm", to: "pnpm", keepNodeModules: false, noImport: false },
+      { from: "npm", to: "pnpm", keepNodeModules: false, noImport: false, keepBackup: false },
       { prompter, isTTY: () => true, apply, detectVersion: () => "10.0.0" },
     );
 
@@ -107,6 +109,31 @@ describe("runInteractive", () => {
     expect(prompter.outro).toHaveBeenCalledWith(expect.stringContaining("Migrated npm → pnpm"));
   });
 
+  test("passes keepBackup to apply and reports the retained backup", async () => {
+    const apply = mock(async (_plan: Plan, opts: ApplyOptions = {}) => {
+      opts.onBackup?.("/tmp/migration-backup");
+    });
+    const prompter = makePrompter({
+      confirmApply: mock(async () => "apply" as const),
+      selectOptions: mock(async () => ({
+        noImport: false,
+        keepNodeModules: false,
+        keepBackup: true,
+      })),
+    });
+
+    const code = await runInteractive(
+      "/proj",
+      fakeProbe({ files: baseFiles }),
+      { from: "npm", to: "pnpm", keepNodeModules: false, noImport: false, keepBackup: true },
+      { prompter, isTTY: () => true, apply, detectVersion: () => "10.0.0" },
+    );
+
+    expect(code).toBe(0);
+    expect(apply).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ keepBackup: true }));
+    expect(prompter.note).toHaveBeenCalledWith(expect.stringContaining("/tmp/migration-backup"), "Recovery");
+  });
+
   test("refuses to apply when the target version is unavailable", async () => {
     const apply = mock(async () => {});
     const prompter = makePrompter({ confirmApply: mock(async () => "apply" as const) });
@@ -114,7 +141,7 @@ describe("runInteractive", () => {
     const code = await runInteractive(
       "/proj",
       fakeProbe({ files: baseFiles }),
-      { from: "npm", to: "pnpm", keepNodeModules: false, noImport: false },
+      { from: "npm", to: "pnpm", keepNodeModules: false, noImport: false, keepBackup: false },
       { prompter, isTTY: () => true, apply, detectVersion: () => undefined },
     );
 

@@ -52,6 +52,7 @@ export function importCommand(from: PmId, to: PmId): string[] | undefined {
     case "pnpm":
       return from === "npm" || from === "yarn" ? ["pnpm", "import"] : undefined;
     case "yarn":
+      // Yarn Berry (v2+) removed `yarn import`; only Yarn Classic can import.
       return from === "npm" ? ["yarn", "import"] : undefined;
     case "bun":
       return ["bun", "pm", "migrate"];
@@ -60,8 +61,11 @@ export function importCommand(from: PmId, to: PmId): string[] | undefined {
   }
 }
 
-/** Whether the target's import command can fall back to `node_modules`. */
-export function importNeedsLockfileOnly(to: PmId): boolean {
-  // `yarn import` can reconstruct a lockfile from node_modules alone.
-  return to !== "yarn";
+/** Parse the major version from a version string such as `1.22.19`. */
+export function majorVersion(version: string | undefined): number | undefined {
+  if (version === undefined) return undefined;
+  const match = version.match(/^(\d+)(?:\.|$)/);
+  if (!match) return undefined;
+  const major = Number(match[1]);
+  return Number.isSafeInteger(major) ? major : undefined;
 }
